@@ -1,60 +1,29 @@
 var zlib = require('zlib');
 var winston = require('winston');
+
 var papertrailTransport = require('winston-papertrail').Papertrail;
-var dogapi = require('dogapi');
-var config = require('./env.json');
 
-function addLambdaMetrics(data, match) {
-  var now = dogapi.now();
+var host = process.env.PAPERTAIL_HOST;
+var port = process.env.PAPERTAIL_PORT;
+var program = process.env.PAPERTAIL_PROGRAM;
+var hostname = process.env.PAPERTAIL_HOSTNAME;
 
-  data.push({
-    metric: 'aws.lambda.billed',
-    points: [
-      [now, match[1]]
-    ]
-  });
-
-  data.push({
-    metric: 'aws.lambda.maxmemory',
-    points: [
-      [now, match[2]]
-    ]
-  });
-};
-
-function addAppMetrics(data, match) {
-  var now = parseInt((new Date(match[1])).getTime()/1000);
-
-  var tags = [];
-  var points = [];
-
-  match[3].split(' ').forEach(function (metric) {
-    var keyValue = metric.split('=');
-
-    if (keyValue[0].indexOf('metric#') == -1) {
-      return;
-    }
-
-    if (keyValue[0].indexOf('metric#tag#') != -1) {
-      return tags.push(keyValue[0].replace('metric#tag#', '') + ':' + keyValue[1]);
-    }
-
-    points.push({
-      metric: [config.appname, config.program, match[2], keyValue[0].replace('metric#', '')].join('.'),
-      points: [
-        [now, parseInt(keyValue[1])]
-      ]
-    });
-  });
-
-  points.forEach(function (item) {
-    item.tags = tags;
-    data.push(item);
-  });
-};
+// CloudWatch logs encoding
+var encoding = process.env.ENCODING || 'utf-8';  // default is utf-8
 
 exports.handler = function (event, context, cb) {
-  context.callbackWaitsForEmptyEventLoop = config.waitForFlush;
+  if (host === null) {
+      context.fail('Invalid PAPERTAIL_HOST environment variable: ' + host);
+  }
+  if (host === port) {
+    context.fail('Invalid PAPERTAIL_PORT environment variable: ' + port);
+  }
+  if (host === program) {
+    context.fail('Invalid PAPERTAIL_PROGRAM environment variable: ' + program);
+  }
+  if (host === hostname) {
+    context.fail('Invalid PAPERTAIL_HOSTNAME environment variable: ' + hostname);
+  }
 
   var payload = new Buffer(event.awslogs.data, 'base64');
 
@@ -63,61 +32,27 @@ exports.handler = function (event, context, cb) {
       return cb(err);
     }
 
-    dogapi.initialize({
-      api_key: config.datadog
-    });
-
     var log = new (winston.Logger)({
       transports: []
     });
 
     log.add(papertrailTransport, {
-      host: config.host,
-      port: config.port,
-      program: config.program,
-      hostname: config.appname,
+      host: host,
+      port: port,
+      program: program,
+      hostname: hostname,
       flushOnClose: true,
       logFormat: function (level, message) {
         return message;
       }
     });
 
-    var data = JSON.parse(result.toString('utf8'));
-
-    var metricRegex = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z)\ -\ info:\ ([a-z]+):.*?(metric#.*)+$/;
-    var reportRegex = /^REPORT\ RequestId.*Billed\ Duration:\ ([0-9]+)\ ms.*Used:\ ([0-9]+)\ MB$/;
-
-    var metricPoints = [];
-    var reportPoints = [];
-
+    var data = JSON.parse(result.toString(encoding));
     data.logEvents.forEach(function (line) {
-      log.info(line.message);
-
-      if (config.datadog !== '') {
-        var metricMatch = line.message.trim().match(metricRegex);
-
-        if (metricMatch != null) {
-          return addAppMetrics(metricPoints, metricMatch);
-        }
-
-        var reportMatch = line.message.trim().match(reportRegex);
-
-        if (reportMatch != null) {
-          return addLambdaMetrics(reportPoints, reportMatch);
-        }
-      }
+      log.info(line.message.replace(/\n$/, ''));
     });
 
-    if (config.datadog === '') {
-      log.close();
-      return cb();
-    }
-
-    dogapi.metric.send_all(metricPoints, function () {
-      dogapi.metric.send_all(reportPoints, function () {
-        log.close();
-        cb();
-      });
-    });
+    log.close();
+    return cb();
   });
-};
+}

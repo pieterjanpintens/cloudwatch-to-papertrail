@@ -5,17 +5,16 @@
   "main": "index.js",
   "dependencies": {
     "winston": "",
-    "winston-papertrail": "hyrwork/winston-papertrail",
-    "dogapi": ""
+    "winston-papertrail": "hyrwork/winston-papertrail"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/apiaryio/cloudwatch-to-papertrail.git"
+    "url": "git+https://github.com/pieterjanpintens/cloudwatch-to-papertrail.git"
   },
   "author": "",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/apiaryio/cloudwatch-to-papertrail/issues"
+    "url": "https://github.com/pieterjanpintens/cloudwatch-to-papertrail/issues"
   },
-  "homepage": "https://github.com/apiaryio/cloudwatch-to-papertrail#readme"
+  "homepage": "https://github.com/pieterjanpintens/cloudwatch-to-papertrail/#readme"
 }
